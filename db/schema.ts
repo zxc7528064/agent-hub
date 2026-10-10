@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const relayTasks = sqliteTable("relay_tasks", {
   id: text("id").primaryKey(),
@@ -15,3 +15,12 @@ export const relayTasks = sqliteTable("relay_tasks", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const relayMessages = sqliteTable("relay_messages", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull().references(() => relayTasks.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  role: text("role").notNull(),
+  body: text("body").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("relay_messages_task_created_idx").on(table.taskId, table.createdAt)]);
