@@ -50,12 +50,12 @@ WAIT=()      # the script ends when one of these exits
 cleanup() {
   echo
   say "關閉中…"
-  for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null || true; done
+  for p in "${PIDS[@]-}"; do kill "$p" 2>/dev/null || true; done
   rm -rf "$LOGDIR"
 }
 trap cleanup EXIT INT TERM
 
-say "啟動中控台（port $PORT）…"
+say "啟動中控台（port ${PORT}）…"
 PORT="$PORT" HOST=127.0.0.1 node server/index.js >"$LOGDIR/hub.log" 2>&1 &
 PIDS+=($!); WAIT+=($!)
 for _ in $(seq 1 50); do grep -q "已啟動" "$LOGDIR/hub.log" 2>/dev/null && break; sleep 0.2; done
@@ -106,8 +106,15 @@ cat <<EOF
 
 EOF
 
-# Keep running until a child exits or the user presses Ctrl+C.
-# (The bridge may exit right away when one is already running for this
-# computer, e.g. started by kimi-hub; that one keeps serving it.)
-wait -n "${WAIT[@]}" 2>/dev/null || true
+# Keep running until a required child exits or the user presses Ctrl+C.
+# macOS ships Bash 3.2, which has no `wait -n`, so monitor portably.
+while true; do
+  for p in "${WAIT[@]}"; do
+    if ! kill -0 "$p" 2>/dev/null; then
+      wait "$p" 2>/dev/null || true
+      break 2
+    fi
+  done
+  sleep 1
+done
 tail -5 "$LOGDIR/hub.log" "$LOGDIR/cf.log" 2>/dev/null || true
