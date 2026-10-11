@@ -532,6 +532,54 @@ function homeTarget() {
   return machine ? { kind: 'machine', id: machine.id, name: `Kimi · ${machine.name}`, machine } : null;
 }
 
+function homeTargets() {
+  const machines = S.machines
+    .filter((m) => m.online && m.kimi?.available)
+    .map((machine) => ({ kind: 'machine', id: machine.id, name: 'Kimi', detail: machine.name, machine }));
+  const agents = S.agents
+    .filter((agent) => agent.enabled && agent.available && agent.type !== 'kimi-remote')
+    .map((agent) => ({ kind: 'agent', id: agent.id, name: agent.name || '本機 Agent', detail: agent.typeLabel || '在這台電腦執行', agent }));
+  return [...machines, ...agents];
+}
+
+function selectHomeTarget(target) {
+  if (target.kind === 'machine') {
+    S.home.machineId = target.id;
+    S.home.targetId = `machine:${target.id}`;
+  } else S.home.targetId = `agent:${target.id}`;
+  saveHome();
+  showHome();
+}
+
+function homeTargetPicker(selected) {
+  const targets = homeTargets();
+  return h(
+    'div',
+    { class: 'home-target-wrap' },
+    h('div', { class: 'home-target-label' }, '選擇這個對話要使用的 Agent'),
+    h(
+      'div',
+      { class: 'home-target-picker', role: 'group', 'aria-label': '選擇 Kimi 或 Codex' },
+      ...targets.map((target) => {
+        const active = target.kind === selected.kind && target.id === selected.id;
+        const identity = agentIdentity({ agent: target.agent });
+        return h(
+          'button',
+          {
+            class: `home-target${active ? ' active' : ''} home-target--${identity.kind}`,
+            type: 'button',
+            'aria-pressed': String(active),
+            onclick: () => !active && selectHomeTarget(target),
+          },
+          h('span', { class: 'home-target-main' }, agentBadge(identity), h('strong', null, target.name)),
+          h('span', { class: 'home-target-detail' }, target.kind === 'machine' ? `Kimi Code · ${target.detail}` : `${target.detail} · 這台電腦`),
+          active ? h('span', { class: 'home-target-current' }, '目前選擇') : null,
+        );
+      }),
+    ),
+  );
+}
+
 async function showHome() {
   leaveSession();
   S.route = 'home';
@@ -583,6 +631,7 @@ async function showHome() {
       h(
         'div',
         { class: 'home-inner' },
+        homeTargetPicker(target),
         h('div', { class: 'home-agent-choice' }, agentBadge(agentIdentity({ agent: target.agent }), true), h('span', null, target.kind === 'machine' ? `執行於 ${target.machine.name}` : '執行於這台電腦')),
         h('div', { class: 'large-title' }, `要讓 ${target.name} 做什麼？`),
         homeComposer.el,
@@ -642,12 +691,7 @@ function machineMenu(anchor) {
         description: !m.online ? '離線' : !m.kimi?.available ? '沒有執行中的 Kimi' : m.platform,
         checked: cur?.kind === 'machine' && cur.id === m.id,
         disabled: !m.online || !m.kimi?.available,
-        onSelect: () => {
-          S.home.machineId = m.id;
-          S.home.targetId = `machine:${m.id}`;
-          saveHome();
-          showHome();
-        },
+        onSelect: () => selectHomeTarget({ kind: 'machine', id: m.id }),
       })),
       { separator: true },
       { section: 'Codex / 本機 Agent' },
@@ -656,11 +700,7 @@ function machineMenu(anchor) {
         description: a.available ? a.typeLabel : a.reason || '無法使用',
         checked: cur?.kind === 'agent' && cur.id === a.id,
         disabled: !a.available,
-        onSelect: () => {
-          S.home.targetId = `agent:${a.id}`;
-          saveHome();
-          showHome();
-        },
+        onSelect: () => selectHomeTarget({ kind: 'agent', id: a.id }),
       })),
       { separator: true },
       { label: '連接其他電腦…', onSelect: openMachines },

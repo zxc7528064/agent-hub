@@ -463,6 +463,75 @@ kbd {
   text-align: center;
   gap: var(--space-3);
 }
+.home-target-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.home-target-label {
+  color: var(--ink-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+.home-target-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-2);
+}
+.home-target {
+  position: relative;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+}
+.home-target:hover {
+  background: var(--fill-hover);
+}
+.home-target.active {
+  border-width: 2px;
+  padding: 11px 13px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+}
+.home-target--kimi.active {
+  border-color: #d98935;
+}
+.home-target--codex.active {
+  border-color: #3a9a6c;
+}
+.home-target--local.active {
+  border-color: #7770b7;
+}
+.home-target-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: 70px;
+  font-size: 14px;
+}
+.home-target-detail {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--ink-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-target-current {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--ink-secondary);
+  font-size: 10px;
+  font-weight: 650;
+}
 .home-agent-choice {
   display: flex;
   align-items: center;
@@ -475,6 +544,28 @@ kbd {
   height: 20px;
   padding-inline: 8px;
   font-size: 10px;
+}
+@media (max-width: 520px) {
+  .home-target-picker {
+    grid-template-columns: 1fr 1fr;
+  }
+  .home-target {
+    padding: 10px;
+  }
+  .home-target.active {
+    padding: 9px;
+  }
+  .home-target-main {
+    padding-right: 0;
+  }
+  .home-target-current {
+    position: static;
+    display: block;
+    margin-top: 6px;
+  }
+  .home-target-detail {
+    white-space: normal;
+  }
 }
 .large-title {
   font-family: var(--font-rounded);
