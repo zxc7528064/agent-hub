@@ -50,8 +50,8 @@ export const TEMPLATES = [
     install: 'npm i -g opencode-ai',
     enabled: false,
   }),
-  acp('codex-acp', 'OpenAI Codex (ACP)', 'npx', '-y @zed-industries/codex-acp', '#0f0f0f', {
-    description: 'Zed 維護的 Codex ACP 轉接器，沿用 ChatGPT 帳號登入（codex login）。',
+  acp('codex-acp', 'OpenAI Codex (ACP)', 'npx', '-y @agentclientprotocol/codex-acp', '#0f0f0f', {
+    description: 'Agent Client Protocol 維護的 Codex 轉接器，沿用 ChatGPT 帳號登入（codex login）。',
     login: 'codex login',
     enabled: false,
   }),
