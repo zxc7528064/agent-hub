@@ -76,7 +76,7 @@ const agentRunning = (ev) => {
 };
 
 export class Transcript {
-  // opts: { cwd, onRespond(ev, optionId, extra), onOpenArtifact(path, versionId), onCopy }
+  // opts: { cwd, agentName, onRespond(ev, optionId, extra), onOpenArtifact(path, versionId), onCopy }
   constructor(opts) {
     this.opts = opts;
     this.column = h('div', { class: 'column' });
@@ -340,7 +340,7 @@ export class Transcript {
     if (since) this.since = since;
     if (tps !== undefined) this.tps = tps;
     this.renderWorking();
-    // The last open thinking/tool rows reflect whether Kimi is still going.
+    // The last open thinking/tool rows reflect whether the current agent is still going.
     for (const id of this.order.slice(-6)) this.markDirty(id);
   }
 
@@ -1142,7 +1142,8 @@ export class Transcript {
         this.workingKind = 'running';
         this.secsEl = h('span', { class: 'muted' });
         this.tpsEl = h('span', { class: 'muted', title: '產生速度：這一輪生成的 token 數 ÷ 生成時間' });
-        fill(this.working, h('div', { class: 'working-line' }, h('span', { class: 'pulse' }), h('span', null, 'Kimi 正在處理'), this.secsEl, this.tpsEl, h('span', { class: 'muted hint' }, ' · Esc 停止')));
+        const agentName = this.opts.agentName || 'Agent';
+        fill(this.working, h('div', { class: 'working-line' }, h('span', { class: 'pulse' }), h('span', null, `${agentName} 正在處理`), this.secsEl, this.tpsEl, h('span', { class: 'muted hint' }, ' · Esc 停止')));
       }
       this.secsEl.textContent = secs ? ` · ${secs}` : '';
       this.tpsEl.textContent = this.tps ? ` · ${this.tps} tok/s` : '';
@@ -1187,4 +1188,3 @@ export function todoList(todos) {
     }),
   );
 }
-

@@ -803,6 +803,7 @@ async function openSession(id) {
   cur.ping = setInterval(() => document.visibilityState === 'visible' && post(`/sessions/${id}/viewing`).catch(() => {}), 60_000);
   cur.transcript = new Transcript({
     cwd: summary?.cwd,
+    agentName: agentIdentity({ summary }).name,
     onRespond: respond,
     onOpenArtifact: (path, version) => showArtifact(path, version),
     onArtifacts: (list) => {
@@ -883,6 +884,7 @@ function applySnapshot(full) {
   cur.loading = true; // pages already there are not "new" while it loads
   S.sessions.set(summary.id, summary);
   cur.transcript.opts.cwd = summary.cwd;
+  cur.transcript.opts.agentName = agentIdentity({ summary }).name;
   cur.transcript.load(events);
   cur.loading = false;
   cur.transcript.setStatus(summary.status, busy(summary.status) ? lastUserTs(events) : null, summary.meta?.tps || 0);
@@ -1456,7 +1458,7 @@ function showAgents(id) {
   artifactView = null;
   closeAgentPanel();
   showPanel('agents');
-  const steps = new Transcript({ cwd: S.cur.summary?.cwd, onRespond: respond, onImage: lightbox, onLink: openFileLink });
+  const steps = new Transcript({ cwd: S.cur.summary?.cwd, agentName: agentIdentity({ summary: S.cur.summary }).name, onRespond: respond, onImage: lightbox, onLink: openFileLink });
   const section = (label, ...right) => h('div', { class: 'agent-sec' }, h('span', { class: 'agent-sec-label' }, label), h('span', { class: 'om-toolbar__spacer' }), ...right);
   applyPanes();
   agentPanel = {
