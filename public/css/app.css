@@ -261,6 +261,44 @@ kbd {
   font-size: 11px;
   line-height: 14px;
   color: var(--ink-secondary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.row-sub-text,
+.toolbar-context {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+.agent-label--kimi {
+  color: #9a4e08;
+  background: #fff0dc;
+  border-color: #f2cf9f;
+}
+.agent-label--codex {
+  color: #176441;
+  background: #e7f6ed;
+  border-color: #b9ddc8;
+}
+.agent-label--local {
+  color: #4e4b83;
+  background: #efedff;
+  border-color: #d4cff8;
 }
 .row-pin {
   color: var(--ink-secondary);
@@ -424,6 +462,19 @@ kbd {
   align-items: center;
   text-align: center;
   gap: var(--space-3);
+}
+.home-agent-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-secondary);
+  font-size: 12px;
+}
+.home-agent-choice .agent-label,
+.toolbar .agent-label {
+  height: 20px;
+  padding-inline: 8px;
+  font-size: 10px;
 }
 .large-title {
   font-family: var(--font-rounded);

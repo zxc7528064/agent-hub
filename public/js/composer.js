@@ -196,6 +196,7 @@ export class Composer {
   //          effort, permission, planMode, context, skills, machineName, folderName }
   update(state) {
     this.state = { ...this.state, ...state };
+    if (state.placeholder) this.input.placeholder = state.placeholder;
     const readOnly = this.state.terminal && !this.state.controllable;
     this.box.hidden = readOnly;
     if (readOnly) {

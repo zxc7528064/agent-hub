@@ -71,6 +71,19 @@ const machineById = (id) => S.machines.find((m) => m.id === id);
 const agentById = (id) => S.agents.find((a) => a.id === id);
 const busy = (status) => status === 'running' || status === 'awaiting_permission';
 
+function agentIdentity({ agent, summary } = {}) {
+  const local = agent || agentById(summary?.agentId);
+  if (local) {
+    const codex = /codex/i.test([local.id, local.name, local.typeLabel].filter(Boolean).join(' '));
+    return { kind: codex ? 'codex' : 'local', badge: codex ? 'CODEX' : 'AGENT', name: local.name || (codex ? 'Codex' : '本機 Agent') };
+  }
+  return { kind: 'kimi', badge: 'KIMI', name: 'Kimi' };
+}
+
+function agentBadge(identity, long = false) {
+  return h('span', { class: `agent-label agent-label--${identity.kind}` }, long ? `${identity.name} 對話` : identity.badge);
+}
+
 function toast(text, { action, onAction, kind = '' } = {}) {
   const el = h('div', { class: `toast ${kind}`, role: 'status' }, h('span', null, text), action ? h('button', { class: 'om-btn om-btn--plain om-btn--sm', type: 'button', onclick: () => (onAction(), el.remove()) }, action) : null);
   $toasts.append(el);
@@ -227,7 +240,8 @@ function drawSidebar() {
       const href = r.hub ? `#/s/${r.hub.id}` : `#/k/${r.machine.id}/${r.kimi.id}`;
       const active = current && ((r.hub && r.hub.id === current.id) || (r.kimi && current.kimiSessionId === r.kimi.id && current.machineId === r.machine?.id));
       const owner = r.kimi?.owner || r.hub?.meta?.owner;
-      const sub = [r.agent?.name || (owner === 'tui' ? '終端機' : null), multi && r.machine ? r.machine.name : null, r.cwd ? baseName(r.cwd) : null].filter(Boolean).join(' · ');
+      const identity = agentIdentity({ agent: r.agent });
+      const sub = [owner === 'tui' ? '終端機' : null, multi && r.machine ? r.machine.name : null, r.cwd ? baseName(r.cwd) : null].filter(Boolean).join(' · ');
       items.push(
         h(
           'a',
@@ -243,7 +257,12 @@ function drawSidebar() {
               rowMenu(r, pointAnchor(e.clientX, e.clientY));
             },
           },
-          h('span', { class: 'row-text' }, h('span', { class: 'row-title' }, r.title), h('span', { class: 'row-sub' }, sub || relTime(r.updatedAt))),
+          h(
+            'span',
+            { class: 'row-text' },
+            h('span', { class: 'row-title' }, r.title),
+            h('span', { class: 'row-sub' }, agentBadge(identity), h('span', { class: 'row-sub-text' }, sub || relTime(r.updatedAt))),
+          ),
           r.status === 'awaiting_permission'
             ? h('span', { class: 'om-badge om-badge--warning' }, '需要你')
             : r.status === 'running'
@@ -564,6 +583,7 @@ async function showHome() {
       h(
         'div',
         { class: 'home-inner' },
+        h('div', { class: 'home-agent-choice' }, agentBadge(agentIdentity({ agent: target.agent }), true), h('span', null, target.kind === 'machine' ? `執行於 ${target.machine.name}` : '執行於這台電腦')),
         h('div', { class: 'large-title' }, `要讓 ${target.name} 做什麼？`),
         homeComposer.el,
         h('p', { class: 'home-hint' }, m ? `會在「${m.name}」上的 Kimi 執行。` : `會在這台電腦用 ${target.name} 執行。`),
@@ -591,6 +611,7 @@ function updateHomeComposer() {
   const mm = m ? machineModels.get(m.id) : null;
   const folder = m ? S.home.cwdByMachine?.[m.id] : S.home.cwdByAgent?.[a?.id];
   homeComposer.update({
+    placeholder: a ? `告訴 ${a.name || '本機 Agent'} 要做什麼…` : '告訴 Kimi 要做什麼…',
     machineName: m ? `Kimi · ${m.name}` : a?.name,
     folderName: folder === null ? '新資料夾' : folder ? baseName(folder) : '新資料夾',
     models: mm?.models || [],
@@ -849,7 +870,9 @@ function updateComposer() {
     drawTodos();
   }
   const meta = s.meta || {};
+  const identity = agentIdentity({ summary: s });
   const state = {
+    placeholder: `傳送訊息給 ${identity.name}…`,
     running: s.status === 'running',
     awaiting: s.status === 'awaiting_permission',
     queue: meta.queue || [],
@@ -891,7 +914,8 @@ function renderToolbar() {
   }
   const m = machineById(s.machineId);
   const a = agentById(s.agentId);
-  const sub = [a?.name || m?.name || s.meta?.machineName, s.cwd ? shortPath(s.cwd, m?.home || S.config?.home, 3) : null].filter(Boolean).join(' · ');
+  const identity = agentIdentity({ agent: a, summary: s });
+  const sub = [m?.name || s.meta?.machineName, s.cwd ? shortPath(s.cwd, m?.home || S.config?.home, 3) : null].filter(Boolean).join(' · ');
   const arts = S.artifacts.length;
   fill(
     $toolbar,
@@ -903,7 +927,8 @@ function renderToolbar() {
       h(
         'div',
         { class: 'om-toolbar__subtitle', title: s.cwd || '' },
-        sub,
+        agentBadge(identity, true),
+        sub ? h('span', { class: 'toolbar-context' }, sub) : null,
         m && !m.online ? h('span', { class: 'om-badge om-badge--danger' }, '電腦離線') : null,
         s.meta?.owner === 'tui' ? h('span', { class: 'om-badge', title: s.meta.guess ? '同一個資料夾有終端機的 Kimi 開著，可能正在用這個對話，這裡先只能看' : s.meta.controllable ? '在終端機的 Kimi 裡執行，可以從這裡操作' : '在終端機的 Kimi 裡執行，這裡只能看' }, s.meta.controllable ? '終端機' : '終端機 · 唯讀') : null,
         autoPauseBadge(s),
