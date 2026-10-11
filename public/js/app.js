@@ -302,14 +302,15 @@ function drawSidebar() {
 // Right-click (or the … button) on a conversation in the sidebar.
 function rowMenu(r, anchor) {
   if (r.agent) {
+    const syncedCodex = r.hub?.meta?.codexSource && !r.hub.meta.codexSource.claimed;
     return openMenu(
       anchor,
       [
         { label: '在新分頁開啟', onSelect: () => window.open(`${location.pathname}#/s/${r.hub.id}`, '_blank', 'noopener') },
         { label: S.pins.has(r.key) ? '取消釘選' : '釘選', onSelect: () => togglePin(r.key) },
         r.cwd ? { label: '複製資料夾路徑', onSelect: () => copyText(r.cwd).then(() => toast('已複製')) } : null,
-        { separator: true },
-        { label: '刪除…', destructive: true, onSelect: () => deleteLocalSession(r) },
+        syncedCodex ? null : { separator: true },
+        syncedCodex ? null : { label: '刪除…', destructive: true, onSelect: () => deleteLocalSession(r) },
       ].filter(Boolean),
       { width: 200 },
     );
@@ -932,6 +933,9 @@ function updateComposer() {
     terminal: meta.owner === 'tui',
     controllable: Boolean(meta.controllable),
     guess: Boolean(meta.guess),
+    readOnly: Boolean(meta.readOnly),
+    readOnlyTitle: meta.readOnlyTitle,
+    readOnlyText: meta.readOnlyText,
     autoPause: s.autoPause || null,
     scheduled: s.scheduled || [],
   };
@@ -986,17 +990,18 @@ function sessionMenu(anchor) {
   const s = S.cur?.summary;
   if (!s) return;
   const local = !s.kimiSessionId;
+  const syncedCodex = s.meta?.codexSource && !s.meta.codexSource.claimed;
   openMenu(
     anchor,
     [
-      { label: '重新命名…', onSelect: renameSession },
+      syncedCodex ? null : { label: '重新命名…', onSelect: renameSession },
       !local ? { label: '複製成新對話', hint: '/fork', onSelect: () => sessionCommand('fork', '') } : null,
       !local ? { label: '壓縮對話', hint: '/compact', onSelect: () => sessionCommand('compact', '') } : null,
       !local ? { label: '自動暫停…', hint: s.autoPause?.enabled ? `${s.autoPause.threshold}%` : '關', onSelect: autoPauseDialog } : null,
       !local ? { label: '定時送出…', hint: s.scheduled?.length ? `${s.scheduled.length} 則` : '/later', onSelect: () => scheduleDialog() } : null,
       { label: '複製資料夾路徑', onSelect: () => copyText(s.cwd || '').then(() => toast('已複製')) },
-      { separator: true },
-      { label: '刪除對話…', destructive: true, onSelect: () => (local ? deleteLocalSession({ key: `local:${s.id}`, title: s.title, hub: s }) : deleteRow({ key: `${s.machineId}:${s.kimiSessionId}`, title: s.title }, s.machineId, s.kimiSessionId)) },
+      syncedCodex ? null : { separator: true },
+      syncedCodex ? null : { label: '刪除對話…', destructive: true, onSelect: () => (local ? deleteLocalSession({ key: `local:${s.id}`, title: s.title, hub: s }) : deleteRow({ key: `${s.machineId}:${s.kimiSessionId}`, title: s.title }, s.machineId, s.kimiSessionId)) },
     ].filter(Boolean),
     { align: 'end', width: 220 },
   );

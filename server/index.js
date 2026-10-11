@@ -17,6 +17,7 @@ import * as machines from './machines.js';
 import { createAutoPause, activityOf, timings, isActive } from './autopause.js';
 import { createScheduler, scheduleTimings } from './schedule.js';
 import { mergeQuota, countsOf } from './quota.js';
+import { createCodexSync } from './codex-sync.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -50,6 +51,7 @@ store.migrateSettings('effort-max', (d) => {
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
+const codexSync = createCodexSync({ broadcast: (message) => broadcast(message) });
 
 function secretEq(provided, expected) {
   const a = Buffer.from(String(provided || ''));
@@ -286,6 +288,7 @@ app.post('/api/sessions/:id/messages', wrap((req) => {
   const text = String(req.body?.text ?? '');
   const images = (req.body?.images || []).slice(0, 10);
   if (!text.trim() && !images.length) throw Object.assign(new Error('訊息是空的'), { status: 400 });
+  codexSync.claim(s);
   const note = req.body?.from === 'artifact' ? '從 Artifact 送出' : undefined;
   runner.startTurn(s, text, { images, note, steer: Boolean(req.body?.steer) });
 }));
@@ -601,6 +604,7 @@ function broadcast(msg) {
 runner.setBroadcast(broadcast);
 machines.setBroadcast(broadcast);
 runner.restoreLiveSessions();
+await codexSync.start();
 
 // Auto-pause and 定時送出 run here on the hub, whether or not a browser is open.
 const persist = (s, { immediate }) => {
@@ -654,6 +658,7 @@ server.listen(PORT, HOST, () => {
 });
 
 function shutdown() {
+  codexSync.stop();
   store.flushAll();
   disposeAll();
   process.exit(0);

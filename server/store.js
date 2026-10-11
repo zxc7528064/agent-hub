@@ -82,6 +82,7 @@ export function deleteAgent(id) {
 // -------------------------------------------------------------- sessions
 
 const sessions = new Map();
+const ephemeralSessions = new Set();
 const saveTimers = new Map();
 const saving = new Map(); // id -> { again }: a write in progress
 const SAVE_DELAY = 1500;
@@ -134,9 +135,27 @@ export function createSession(fields) {
   return session;
 }
 
+// Conversations owned by another application are reconstructed from their
+// source files after every restart, so duplicating them under data/sessions is
+// unnecessary.  Once the hub takes control, claimEphemeralSession makes the
+// record durable before the first turn starts.
+export function upsertEphemeralSession(session) {
+  sessions.set(session.id, session);
+  ephemeralSessions.add(session.id);
+  return session;
+}
+
+export function claimEphemeralSession(session) {
+  ephemeralSessions.delete(session.id);
+  sessions.set(session.id, session);
+  saveSessionNow(session);
+  return session;
+}
+
 // `immediate` starts the write now instead of after the debounce.
 export function saveSession(session, { immediate = false } = {}) {
   session.updatedAt = Date.now();
+  if (ephemeralSessions.has(session.id)) return;
   if (immediate) return saveSessionNow(session);
   if (saveTimers.has(session.id)) return;
   saveTimers.set(
@@ -200,6 +219,7 @@ export function deleteSession(id) {
   clearTimeout(saveTimers.get(id));
   saveTimers.delete(id);
   sessions.delete(id);
+  ephemeralSessions.delete(id);
   fs.rmSync(sessionFile(id), { force: true });
 }
 

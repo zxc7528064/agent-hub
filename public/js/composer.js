@@ -197,7 +197,8 @@ export class Composer {
   update(state) {
     this.state = { ...this.state, ...state };
     if (state.placeholder) this.input.placeholder = state.placeholder;
-    const readOnly = this.state.terminal && !this.state.controllable;
+    const externalReadOnly = Boolean(this.state.readOnly);
+    const readOnly = externalReadOnly || (this.state.terminal && !this.state.controllable);
     this.box.hidden = readOnly;
     if (readOnly) {
       this.note ??= h('div', { class: 'composer-note' });
@@ -208,13 +209,15 @@ export class Composer {
       };
       fill(
         this.note,
-        icon('terminal'),
-        this.state.guess
+        icon(externalReadOnly ? 'computer' : 'terminal'),
+        externalReadOnly
+          ? h('div', { class: 'composer-note-text' }, h('div', { class: 'composer-note-title' }, this.state.readOnlyTitle || '這個對話目前只能查看'), h('div', null, this.state.readOnlyText || '來源程式釋放對話後，就能從這裡繼續。'))
+          : this.state.guess
           ? h('div', { class: 'composer-note-text' }, h('div', { class: 'composer-note-title' }, '這個資料夾有終端機的 Kimi 開著'), h('div', null, '看不出它開的是不是這個對話，為了避免兩邊互相覆蓋，這裡先只能看。關掉那個 Kimi 就會解除。'))
           : h('div', { class: 'composer-note-text' }, h('div', { class: 'composer-note-title' }, '這個對話正在終端機的 Kimi 裡執行'), h('div', null, '這裡會即時同步。要從這裡操作，在那個 Kimi 裡輸入 /web，或之後用 kimi-hub 啟動 Kimi。')),
-        this.state.guess && this.opts.onUnlock
+        !externalReadOnly && this.state.guess && this.opts.onUnlock
           ? h('button', { class: 'om-btn om-btn--sm', type: 'button', onclick: unlock }, '仍要從這裡操作')
-          : this.opts.onHelp
+          : !externalReadOnly && this.opts.onHelp
             ? h('button', { class: 'om-btn om-btn--sm', type: 'button', onclick: () => this.opts.onHelp() }, '說明…')
             : null,
       );
