@@ -2615,16 +2615,60 @@ document.addEventListener('keydown', (e) => {
 });
 window.addEventListener('focus', updateTitle);
 
+function retryWake(ms) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      window.removeEventListener('online', finish);
+      document.removeEventListener('visibilitychange', visible);
+      resolve();
+    };
+    const visible = () => {
+      if (document.visibilityState === 'visible') finish();
+    };
+    const timer = setTimeout(finish, ms);
+    window.addEventListener('online', finish, { once: true });
+    document.addEventListener('visibilitychange', visible);
+  });
+}
+
+async function waitForConfig() {
+  let delay = 1000;
+  let attempt = 0;
+  while (true) {
+    try {
+      return await get('/config', { timeoutMs: 15_000 });
+    } catch (err) {
+      if (err.status === 401) throw err;
+      attempt += 1;
+      const seconds = Math.max(1, Math.round(delay / 1000));
+      fill(
+        $view,
+        h(
+          'div',
+          { class: 'loading', role: 'status', 'aria-live': 'polite' },
+          `中控暫時離線，正在自動重新連線…（第 ${attempt} 次，約 ${seconds} 秒後重試）`,
+        ),
+      );
+      await retryWake(delay);
+      delay = Math.min(delay * 2, 15_000);
+    }
+  }
+}
+
 async function start() {
   try {
     applyTheme(savedTheme(), { save: false });
   } catch {}
   try {
-    S.config = await get('/config');
+    S.config = await waitForConfig();
     resetHomeChoices();
   } catch (err) {
     if (err.status === 401) return showLogin();
-    fill($view, h('div', { class: 'loading' }, `連不上中控台：${err.message}`));
+    fill($view, h('div', { class: 'loading' }, `無法初始化中控台：${err.message}`));
     return;
   }
   await Promise.all([loadMachines(), loadAgents(), loadSessions()]).catch(fail);
