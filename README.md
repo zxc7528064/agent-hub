@@ -1,56 +1,155 @@
 # Agent Hub
 
-在瀏覽器（電腦或手機）操作你每台電腦上的 Kimi Code。
+把電腦上的 **Kimi Code** 與 **OpenAI Codex** 集中到同一個網頁對話介面。你可以在電腦或手機查看既有對話、傳送新任務、追蹤工具執行與程式修改，也能連接多台電腦，不必一直守在原本的終端機旁。
 
-![對話](docs/conversation.png)
+> 這是自行託管的控制中心。Agent 仍在你的電腦與原本工作目錄執行；瀏覽器負責顯示、同步與下達指令。
 
-| Artifact 即時預覽 | 手機・深色 |
+![Agent Hub 對話畫面](docs/conversation.png)
+
+## 實際畫面
+
+| 選擇 Kimi 或 Codex | 同步 Codex App 對話 |
 | --- | --- |
-| ![Artifact](docs/artifact.png) | ![手機](docs/mobile-dark.png) |
+| <img src="docs/agent-picker.jpg" alt="選擇 Kimi 或 Codex" width="320"> | <img src="docs/codex-sync.jpg" alt="Codex App 對話同步" width="320"> |
 
-## 安裝
+| Artifact 即時預覽 | 手機深色模式 |
+| --- | --- |
+| ![Artifact 即時預覽](docs/artifact.png) | <img src="docs/mobile-dark.png" alt="手機深色模式" width="390"> |
 
-需要 [Node.js 22+](https://nodejs.org)、Git，以及登入好的 [Kimi Code](https://github.com/MoonshotAI/kimi-code)（`kimi login`）。
+## 可以做什麼
 
-**Linux / macOS**
+- **一個入口管理兩種 Agent**：建立新對話時明確選擇 Kimi 或 Codex，側邊欄以不同標籤顯示，避免把工作送錯 Agent。
+- **同步現有對話**：讀取本機 Kimi Code 與 Codex App／CLI 的對話紀錄，在手機與電腦延續同一份內容。
+- **即時追蹤工作**：串流顯示思考、待辦、讀檔、搜尋、指令、diff、測試結果與權限請求。
+- **從網頁操作遠端電腦**：每台電腦透過 bridge 連回 Hub；Agent 仍使用該電腦上的帳號、檔案與工具。
+- **Artifact 預覽**：Agent 寫出的 HTML 可以直接在右側面板預覽，修改時同步更新。
+- **手機友善**：支援響應式版面與深色模式，離開電腦也能查看進度、回覆或停止工作。
+- **工作排程**：支援定時送出、額度恢復後繼續、Kimi 額度自動暫停，以及將等待中的工作移到背景。
+- **斷線恢復**：瀏覽器在網路切換、休眠喚醒或暫時出現 524 時會自動重連。
+
+## 運作方式
+
+```text
+手機／瀏覽器
+      │ HTTPS / WebSocket
+      ▼
+  Agent Hub
+      ├── Kimi bridge ── Kimi Code、既有 session、工作目錄
+      └── ACP adapter ── Codex CLI／其他支援 ACP 的 Agent
+```
+
+Hub 不會把 Kimi 工作改成 Codex 執行，或把 Codex 工作交給 Kimi。每個對話都保存自己的 Agent 類型與執行位置。
+
+## 系統需求
+
+- Node.js 22 以上
+- Git
+- 要使用 Kimi：安裝 [Kimi Code](https://github.com/MoonshotAI/kimi-code) 並先執行 `kimi login`
+- 要使用 Codex：安裝 Codex CLI 並先執行 `codex login`
+
+## 快速開始
+
+目前 repository 是 Private，第一次 clone 時需要先登入有權限的 GitHub 帳號。
+
+### macOS / Linux
 
 ```bash
 git clone -b claude/hopeful-newton-kqqnmj https://github.com/zxc7528064/agent-hub.git agent-hub
-cd agent-hub && npm run public
+cd agent-hub
+npm run public
 ```
 
-**Windows（PowerShell）**
+### Windows PowerShell
 
 ```powershell
 git clone -b claude/hopeful-newton-kqqnmj https://github.com/zxc7528064/agent-hub.git agent-hub
-cd agent-hub; powershell -ExecutionPolicy Bypass -File scripts\start-public.ps1
+cd agent-hub
+powershell -ExecutionPolicy Bypass -File scripts\start-public.ps1
 ```
 
-跑完會印出網址、登入密碼，以及給其他電腦的連接指令。
+啟動腳本會：
 
-**更新**：在 `agent-hub` 資料夾裡執行 `git pull`，再執行一次上面的啟動指令。
+1. 安裝必要的 npm 套件。
+2. 在 `127.0.0.1:8787` 啟動 Agent Hub。
+3. 建立 Cloudflare Tunnel 公網網址。
+4. 產生登入密碼與其他電腦的 bridge 連接指令。
+5. 如果本機已安裝 Kimi Code，自動把本機 Kimi 對話接入 Hub。
+
+終端機會印出網址與登入密碼。請把它們視為機密，不要公開貼出。按 `Ctrl+C` 會結束這次 Hub 與 Quick Tunnel。
+
+### 只在本機使用
+
+```bash
+npm install
+npm start
+```
+
+依終端機顯示的網址與 token 開啟網頁；預設監聽 `127.0.0.1:8787`。
+
+## 使用 Kimi
+
+啟動 `npm run public` 後，本機的 Kimi 對話會自動出現在側邊欄。若要讓終端機與網頁同時操作同一個 Kimi，可建立別名：
+
+```bash
+echo "alias kimi-hub='node ~/.agent-hub/agent-hub-bridge.mjs kimi'" >> ~/.zshrc
+source ~/.zshrc
+```
+
+之後用 `kimi-hub` 取代 `kimi` 啟動。沒有透過 `kimi-hub` 或 `kimi web` 開啟的終端機對話仍可同步閱讀，但為避免兩邊同時寫入，網頁可能保持唯讀。
+
+## 使用 Codex
+
+Agent Hub 會同步同一台電腦 `~/.codex` 內的 Codex App／CLI 對話，並以綠色 **CODEX** 標籤顯示。
+
+- 對話仍在 Codex App 使用時，Hub 只同步顯示，避免兩個程式同時寫入。
+- 關閉該 Codex 對話後，可由 Hub 透過 ACP 接手並延續原本 thread。
+- 新建對話時選擇 **Codex**，工作會交給 Codex ACP adapter，不會使用 Kimi。
 
 ## 連接其他電腦
 
-在那台電腦執行中控台印出的連接指令（左下角「連接電腦…」也看得到）。之後那台電腦的 Kimi 對話會自動出現。
+在 Hub 左下角選擇「連接電腦…」，把畫面提供的指令貼到另一台電腦執行。連線後，該電腦的對話與工作目錄會出現在同一個 Hub 中。
 
-想讓終端機和網頁同時操作同一個對話，用 `kimi-hub` 取代 `kimi` 啟動：
+每台電腦仍各自保存 Agent 登入資訊；bridge 使用獨立金鑰連線，不需要把 Kimi 或 Codex 的帳號密碼傳給 Hub。
+
+## 自動暫停與排程
+
+- `/autopause 90`：Kimi 的 5 小時額度達 90% 時安排優雅暫停，額度恢復後再繼續。
+- `/later 30 繼續`：30 分鐘後送出「繼續」。
+- `/later 15:30 繼續`：在指定時間送出訊息。
+- `/later reset 繼續`：等額度恢復後送出。
+- `/bg`：把 Kimi 正在等待的前景子代理或指令移到背景繼續執行。
+
+這些排程由 Hub 執行；關閉瀏覽器後仍會保留，但 Hub 主程式必須持續運作。
+
+## 安全與資料界線
+
+- Hub 登入 token 與 bridge key 儲存在本機 `data/hub.json`，此檔案已被 Git 忽略。
+- 請勿公開分享包含 `#token=...` 的網址、bridge 指令、API key 或登入資料。
+- Kimi 憑證留在執行 Kimi 的電腦上；bridge 只會把它用於 Kimi 自己的服務。
+- Codex 使用本機既有的 `codex login`／ChatGPT 登入狀態。
+- Quick Tunnel 網址適合臨時使用；固定網域部署應搭配 Cloudflare Access 或其他存取控制。
+
+## 更新與驗證
 
 ```bash
-echo "alias kimi-hub='node ~/.agent-hub/agent-hub-bridge.mjs kimi'" >> ~/.zshrc && source ~/.zshrc
+git pull
+npm run check
+npm test
 ```
 
-## 自動暫停與定時送出
+更新完成後重新啟動 Hub。`npm run check` 會檢查 JavaScript 語法，`npm test` 會執行完整測試套件。
 
-都由中控台執行，關掉網頁也照常運作，重開中控台也會保留。
+## 支援的擴充方式
 
-- **自動暫停**（對話右上角「…」→「自動暫停…」，或 `/autopause 90`）：Kimi 工作時，5 小時額度用到設定的 % 就在對話裡插隊送出「優雅暫停」；5 小時額度恢復後送出「繼續」。每個 5 小時視窗最多暫停一次；暫停期間如果有人又讓 Kimi 開始工作，就不會自動送「繼續」。Kimi 自己開的那一輪（例如背景子代理做完後它接著處理）Kimi 不接受插隊，這時「優雅暫停」會顯示「等待插隊」：中控台每 2 秒再試一次，有新的一輪開始也立刻再試，最晚在這一輪結束時第一個被 Kimi 讀到；不會中斷 Kimi 正在做的事。Kimi 接受插隊後，要等目前這一步做完才會讀到；如果這一步是在等前景的子代理或跑很久的指令，「優雅暫停」被接受 10 秒後還沒被讀到，中控台會把主對話在前景等的工作移到背景（跟 Kimi 的 Ctrl+B 一樣，工作會繼續跑），讓 Kimi 馬上讀到。只對「優雅暫停」這樣做，平常的子代理不會被移動；終端機裡的 Kimi 不適用。
-- **移到背景**（Kimi 在等前景的子代理或指令時，輸入框旁的「移到背景」按鈕、輸入框裡按 Ctrl+B，或 `/bg`）：跟 Kimi 的 Ctrl+B 一樣，把前景的子代理和指令改到背景繼續跑，Kimi 不用再等它。終端機裡用 kimi-hub 開的 Kimi 也可以。
-- **額度恢復後送出**（點輸入框旁的 context 圓圈 →「額度恢復後送出「繼續」」，或 `/later reset 繼續`）：你已經自己讓 Kimi 停下時用。等 Kimi 停下、5 小時額度確實恢復後送出。
-- **定時送出**（「…」→「定時送出…」，或 `/later 30 繼續`、`/later 15:30 繼續`）：幾分鐘後或指定時間送出一則訊息。Kimi 正在工作時，會排在這一輪之後。
+除了 Kimi 與 Codex，後端也預留：
 
-### 方案用量一直是 0%
+- Agent Client Protocol（ACP）Agent
+- 一般 CLI Agent
+- OpenAI-compatible API
+- 本機 Ollama
 
-Kimi 的用量回應裡同時有百分比（`usages.limit_5h.used_ratio`…）和已用次數（週額度的 `usage`、5 小時視窗的 `limits[]`）。Kimi Code 只看百分比，而這個百分比常卡在 0（[kimi-code#3817](https://github.com/MoonshotAI/kimi-code/issues/3817)、[#3908](https://github.com/MoonshotAI/kimi-code/issues/3908)、[#3951](https://github.com/MoonshotAI/kimi-code/issues/3951)、[#4133](https://github.com/MoonshotAI/kimi-code/issues/4133)），所以 Kimi 終端機的 `/usage` 和網頁版也顯示 0%。中控台會另外讀同一份回應裡的次數：同一個視窗（重置時間相同）兩者不一致時取較高的那個（滑鼠移到用量條上會顯示 Kimi 原本回報的百分比和次數）；自動暫停也照這個數字判斷。
+這些連接器可在設定或後端模板中啟用；使用 API 型連接器時，費用與資料處理由對應供應商決定。
 
-讀法：連接器用 Kimi 存在 `~/.kimi-code/credentials/` 的登入，向 Kimi 自己用的網址（`api.kimi.com` 或 `api.kimi.ai`）要同一份用量。只讀不寫、不換發登入，登入資料不會送到 Kimi 以外的地方，也不會傳給中控台；回應的重置時間和 Kimi 剛回報的對不上（不是同一個帳號）就不採用。如果 Kimi 沒附次數，畫面會照 Kimi 的數字顯示，這時請以 Kimi 網站會員頁為準。
+## License
+
+MIT
