@@ -12,10 +12,6 @@
 | --- | --- |
 | <img src="docs/agent-picker.jpg" alt="選擇 Kimi 或 Codex" width="320"> | <img src="docs/codex-sync.jpg" alt="Codex App 對話同步" width="320"> |
 
-| Artifact 即時預覽 | 手機深色模式 |
-| --- | --- |
-| ![Artifact 即時預覽](docs/artifact.png) | <img src="docs/mobile-dark.png" alt="手機深色模式" width="390"> |
-
 ## 可以做什麼
 
 - **一個入口管理兩種 Agent**：建立新對話時明確選擇 Kimi 或 Codex，側邊欄以不同標籤顯示，避免把工作送錯 Agent。
