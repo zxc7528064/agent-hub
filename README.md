@@ -15,14 +15,14 @@
 **Linux / macOS**
 
 ```bash
-git clone -b claude/hopeful-newton-kqqnmj https://github.com/jim890906abc/test.git agent-hub
+git clone -b claude/hopeful-newton-kqqnmj https://github.com/zxc7528064/agent-hub.git agent-hub
 cd agent-hub && npm run public
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-git clone -b claude/hopeful-newton-kqqnmj https://github.com/jim890906abc/test.git agent-hub
+git clone -b claude/hopeful-newton-kqqnmj https://github.com/zxc7528064/agent-hub.git agent-hub
 cd agent-hub; powershell -ExecutionPolicy Bypass -File scripts\start-public.ps1
 ```
 
