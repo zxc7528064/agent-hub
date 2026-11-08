@@ -15,6 +15,13 @@
       "when": 1791650000694,
       "tag": "0001_early_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794155225891,
+      "tag": "0002_normal_brood",
+      "breakpoints": true
     }
   ]
 }
