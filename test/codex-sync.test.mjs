@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { claimCodexSession, discoverCodexRollouts, parseCodexRollout, visibleUserText } from '../server/codex-sync.js';
+import { claimCodexSession, discoverCodexRollouts, parseCodexRollout, syncedSessionId, visibleUserText } from '../server/codex-sync.js';
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-hub-codex-sync-'));
@@ -62,6 +62,30 @@ test('Codex discovery follows session_index and reuses unchanged parsed files', 
   assert.equal(second[0].events, cached.events, 'an unchanged 85MB-style rollout is not reparsed every poll');
 });
 
+test('Codex discovery incrementally consumes only appended rollout rows', (t) => {
+  const f = fixture();
+  t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
+  const cache = new Map();
+  const first = discoverCodexRollouts(f.home, cache);
+  const originalEvents = first[0].events;
+  fs.appendFileSync(
+    f.file,
+    `${JSON.stringify({ timestamp: '2026-10-11T02:00:04.000Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '新增回覆' }] } })}\n`,
+  );
+  const second = discoverCodexRollouts(f.home, cache);
+  assert.equal(second[0].events, originalEvents, 'existing normalized events are retained');
+  assert.deepEqual(second[0].events.map((e) => e.text), ['幫我同步', '已完成', '新增回覆']);
+  assert.equal(cache.get(f.file).state.offset, fs.statSync(f.file).size);
+});
+
+test('Codex rollout scanner skips a large irrelevant row without exposing it', (t) => {
+  const f = fixture();
+  t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
+  fs.appendFileSync(f.file, `${JSON.stringify({ type: 'response_item', payload: { type: 'function_call_output', output: 'x'.repeat(2_000_000) } })}\n`);
+  const record = parseCodexRollout(f.file, { id: f.id, thread_name: '同步測試' });
+  assert.deepEqual(record.events.map((e) => e.text), ['幫我同步', '已完成']);
+});
+
 test('the UI exposes a generic read-only note for a Codex App owned thread', () => {
   const composer = fs.readFileSync(new URL('../public/js/composer.js', import.meta.url), 'utf8');
   const app = fs.readFileSync(new URL('../public/js/app.js', import.meta.url), 'utf8');
@@ -88,4 +112,13 @@ test('an unlocked native Codex conversation is durably claimed before ACP resume
   assert.equal(session.meta.readOnly, false);
   assert.equal(persisted, session);
   assert.equal(announced.session.id, session.id);
+});
+
+test('a claimed Hub copy does not suppress a live Codex Desktop sync', () => {
+  const id = 'native-thread';
+  assert.equal(syncedSessionId(id, () => null), `codex_${id}`);
+  assert.equal(
+    syncedSessionId(id, () => ({ meta: { codexSource: { claimed: true } } })),
+    `codex_sync_${id}`,
+  );
 });
