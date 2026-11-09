@@ -18,6 +18,7 @@ import { createAutoPause, activityOf, timings, isActive } from './autopause.js';
 import { createScheduler, scheduleTimings } from './schedule.js';
 import { mergeQuota, countsOf } from './quota.js';
 import { createCodexSync } from './codex-sync.js';
+import { materializeUploads } from './uploads.js';
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -50,7 +51,7 @@ store.migrateSettings('effort-max', (d) => {
 });
 
 const app = express();
-app.use(express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '30mb' }));
 const codexSync = createCodexSync({ broadcast: (message) => broadcast(message) });
 
 function secretEq(provided, expected) {
@@ -223,7 +224,7 @@ app.get('/api/sessions', wrap(() =>
 // New conversation. On a connected machine ({ machineId, cwd }) the folder is
 // a path on that machine; otherwise a local agent ({ agentId }) is used.
 app.post('/api/sessions', wrap(async (req) => {
-  const { agentId, machineId, prompt, cwd, permissionMode, images, model, effort, permission, planMode } = req.body || {};
+  const { agentId, machineId, prompt, cwd, permissionMode, images, files, model, effort, permission, planMode } = req.body || {};
   const remote = machineId || String(agentId || '').startsWith('kimi@');
   const dir = cwd ? (remote ? String(cwd) : workspace.validateDir(cwd)) : undefined;
   const s = await runner.newSession({
@@ -233,7 +234,8 @@ app.post('/api/sessions', wrap(async (req) => {
     nameHint: prompt,
     config: remote ? { model, effort, permission, planMode } : undefined,
   });
-  if (prompt?.trim() || images?.length) runner.startTurn(s, prompt || '', { images });
+  const uploads = await materializeUploads(s, files || []);
+  if (prompt?.trim() || images?.length || uploads.length) runner.startTurn(s, prompt || '', { images, files: uploads });
   return runner.summarize(s);
 }));
 
@@ -283,14 +285,15 @@ app.delete('/api/sessions/:id', wrap((req) => {
   broadcast({ t: 'deleted', sid: s.id });
 }));
 
-app.post('/api/sessions/:id/messages', wrap((req) => {
+app.post('/api/sessions/:id/messages', wrap(async (req) => {
   const s = mustSession(req.params.id);
   const text = String(req.body?.text ?? '');
   const images = (req.body?.images || []).slice(0, 10);
-  if (!text.trim() && !images.length) throw Object.assign(new Error('訊息是空的'), { status: 400 });
+  const files = await materializeUploads(s, req.body?.files || []);
+  if (!text.trim() && !images.length && !files.length) throw Object.assign(new Error('訊息是空的'), { status: 400 });
   codexSync.claim(s);
   const note = req.body?.from === 'artifact' ? '從 Artifact 送出' : undefined;
-  runner.startTurn(s, text, { images, note, steer: Boolean(req.body?.steer) });
+  runner.startTurn(s, text, { images, files, note, steer: Boolean(req.body?.steer) });
 }));
 
 app.post('/api/sessions/:id/command', wrap(async (req) => {

@@ -1,4 +1,4 @@
-// The message box: auto-growing input, / commands, images, and the
+// The message box: auto-growing input, / commands, attachments, and the
 // model / thinking / permission controls. Used on the home screen (new
 // conversation) and under every conversation.
 import { h, fill, icon, fmtTokens, clockTime, fmtCountdown } from './dom.js';
@@ -13,6 +13,9 @@ const PERMISSION_DESC = {
 };
 export const EFFORT_LABELS = { off: '關閉', on: '開啟', low: '低', medium: '中', high: '高', xhigh: '很高', max: '最高' };
 const MAX_IMAGES = 8;
+const MAX_FILES = 5;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_FILE_BYTES = 20 * 1024 * 1024;
 
 // Built-in commands; Kimi skills are appended from the session.
 const BG_DESCRIPTION = '移到背景（Ctrl+B）：Kimi 正在等的子代理或指令改到背景繼續跑，Kimi 不用再等它';
@@ -104,19 +107,20 @@ export function autoPauseStatus(ap, queue = []) {
 const CUT_IN_WHY = 'Kimi 正在跑它自己開的這一輪，例如處理背景子代理的結果，這種回合 Kimi 不收插隊；每 2 秒再試一次，最晚這一輪結束時第一個讀到';
 
 export class Composer {
-  // opts: { home, placeholder, onSend({ text, images }), onCommand(name, args),
+  // opts: { home, placeholder, onSend({ text, images, files }), onCommand(name, args),
   //         onStop(), onConfig(change), onCancelQueued(promptId), onPickMachine(btn), onPickFolder(btn), onPaste? }
   constructor(opts) {
     this.opts = opts;
     this.state = {};
     this.images = [];
+    this.files = [];
     this.drafts = new Map();
     this.key = null;
     this.input = h('textarea', { class: 'composer-input', rows: 1, placeholder: opts.placeholder || '回覆 Kimi…', 'aria-label': '訊息' });
     this.thumbs = h('div', { class: 'composer-images', hidden: true });
     this.left = h('div', { class: 'composer-tools' });
     this.right = h('div', { class: 'composer-actions' });
-    this.file = h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true, onchange: () => (this.addFiles(this.file.files), (this.file.value = '')) });
+    this.file = h('input', { type: 'file', multiple: true, hidden: true, onchange: () => (this.addFiles(this.file.files), (this.file.value = '')) });
     this.box = h('div', { class: 'composer-box' }, this.thumbs, this.input, h('div', { class: 'composer-bar' }, this.left, this.right), this.file);
     this.tray = h('div', { class: 'composer-tray' });
     this.slash = null;
@@ -137,7 +141,7 @@ export class Composer {
     });
     input.addEventListener('keydown', (e) => this.onKey(e));
     input.addEventListener('paste', (e) => {
-      const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+      const files = [...(e.clipboardData?.files || [])];
       if (files.length) {
         e.preventDefault();
         this.addFiles(files);
@@ -152,7 +156,7 @@ export class Composer {
     this.box.addEventListener('dragleave', () => this.box.classList.remove('drop'));
     this.box.addEventListener('drop', (e) => {
       this.box.classList.remove('drop');
-      const files = [...(e.dataTransfer?.files || [])].filter((f) => f.type.startsWith('image/'));
+      const files = [...(e.dataTransfer?.files || [])];
       if (files.length) {
         e.preventDefault();
         this.addFiles(files);
@@ -169,6 +173,7 @@ export class Composer {
     this.key = key;
     this.input.value = this.drafts.get(key) || '';
     this.images = [];
+    this.files = [];
     this.renderImages();
     this.grow();
     this.renderActions();
@@ -251,7 +256,7 @@ export class Composer {
     const effortName = (e) => EFFORT_LABELS[e] || e;
     fill(
       this.left,
-      s.terminal ? null : h('button', { class: 'chip icon-only', type: 'button', title: '加入圖片', 'aria-label': '加入圖片', onclick: () => this.file.click() }, icon('attach')),
+      s.terminal ? null : h('button', { class: 'chip icon-only', type: 'button', title: '加入圖片或檔案', 'aria-label': '加入圖片或檔案', onclick: () => this.file.click() }, icon('attach')),
       s.terminal ? h('span', { class: 'chip static', title: '這個對話在終端機的 Kimi 裡執行，你的訊息會打進那個終端機' }, icon('terminal'), h('span', null, '終端機')) : null,
       this.opts.home ? chip(s.machineName || '選擇電腦', (b) => this.opts.onPickMachine(b), { iconName: 'computer', title: '要在哪一台電腦上執行', control: 'machine' }) : null,
       this.opts.home ? chip(s.folderName || '選擇資料夾', (b) => this.opts.onPickFolder(b), { iconName: 'folder', title: '工作資料夾', control: 'folder' }) : null,
@@ -319,7 +324,7 @@ export class Composer {
   // ----------------------------------------------------------- actions
 
   hasContent() {
-    return Boolean(this.input.value.trim() || this.images.length);
+    return Boolean(this.input.value.trim() || this.images.length || this.files.length);
   }
 
   renderActions() {
@@ -467,22 +472,24 @@ export class Composer {
   submit({ steer = false } = {}) {
     const raw = this.input.value;
     const text = raw.trim();
-    if (!text && !this.images.length) return;
+    if (!text && !this.images.length && !this.files.length) return;
     const m = text.match(/^\/([\w.:-]+)(?:\s+([\s\S]*))?$/);
-    if (m && !this.images.length && this.commands().some((c) => c.name === m[1] || c.aliases?.includes(m[1]))) {
+    if (m && !this.images.length && !this.files.length && this.commands().some((c) => c.name === m[1] || c.aliases?.includes(m[1]))) {
       const cmd = this.commands().find((c) => c.name === m[1] || c.aliases?.includes(m[1]));
       this.clear();
       this.opts.onCommand(cmd.name, (m[2] || '').trim());
       return;
     }
     const images = this.images.map(({ mimeType, data, thumb }) => ({ mimeType, data, thumb }));
+    const files = this.files.map(({ name, mimeType, size, data }) => ({ name, mimeType, size, data }));
     this.clear();
-    this.opts.onSend({ text, images, steer });
+    this.opts.onSend({ text, images, files, steer });
   }
 
   clear() {
     this.input.value = '';
     this.images = [];
+    this.files = [];
     if (this.key) this.drafts.delete(this.key);
     this.renderImages();
     this.grow();
@@ -577,11 +584,19 @@ export class Composer {
   // ------------------------------------------------------------ images
 
   async addFiles(files) {
-    for (const f of [...files].slice(0, MAX_IMAGES - this.images.length)) {
+    for (const f of [...files]) {
       try {
-        this.images.push(await readImage(f));
-      } catch {
-        this.opts.onError?.(`沒辦法讀取「${f.name}」。請改用 PNG 或 JPEG。`);
+        if (/^image\/(png|jpeg|webp|gif)$/.test(f.type)) {
+          if (this.images.length >= MAX_IMAGES) throw new Error(`最多 ${MAX_IMAGES} 張圖片`);
+          this.images.push(await readImage(f));
+        } else {
+          if (this.files.length >= MAX_FILES) throw new Error(`最多 ${MAX_FILES} 個檔案`);
+          if (f.size > MAX_FILE_BYTES) throw new Error('單一檔案不得超過 10 MB');
+          if (this.files.reduce((n, x) => n + x.size, 0) + f.size > MAX_TOTAL_FILE_BYTES) throw new Error('檔案總大小不得超過 20 MB');
+          this.files.push(await readAttachment(f));
+        }
+      } catch (err) {
+        this.opts.onError?.(`沒辦法加入「${f.name}」：${err.message || err}`);
       }
     }
     this.renderImages();
@@ -600,11 +615,39 @@ export class Composer {
           h('button', { class: 'thumb-x', type: 'button', title: '移除', 'aria-label': '移除圖片', onclick: () => (this.images.splice(i, 1), this.renderImages(), this.renderActions()) }, icon('x')),
         ),
       ),
+      ...this.files.map((file, i) =>
+        h(
+          'div',
+          { class: 'thumb thumb-file', title: file.name },
+          icon('attach'),
+          h('span', null, file.name),
+          h('small', null, formatBytes(file.size)),
+          h('button', { class: 'thumb-x', type: 'button', title: '移除', 'aria-label': '移除檔案', onclick: () => (this.files.splice(i, 1), this.renderImages(), this.renderActions()) }, icon('x')),
+        ),
+      ),
     );
-    this.thumbs.hidden = !this.images.length;
+    this.thumbs.hidden = !this.images.length && !this.files.length;
     const model = this.currentModel();
     if (this.images.length && model && !model.image) this.opts.onError?.(`${model.name} 可能看不懂圖片`);
   }
+}
+
+async function readAttachment(file) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const match = String(dataUrl).match(/^data:([^;]*);base64,(.*)$/);
+  if (!match) throw new Error('讀取失敗');
+  return { name: file.name, mimeType: match[1] || file.type || 'application/octet-stream', size: file.size, data: match[2] };
+}
+
+function formatBytes(size) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // Downscale to at most 2000px (and a small thumbnail for the transcript).

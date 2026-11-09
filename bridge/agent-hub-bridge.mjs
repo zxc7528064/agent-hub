@@ -1563,6 +1563,27 @@ const hub = {
         } catch {}
         return { path: dir };
       }
+      case 'workspace.upload': {
+        const sessionId = String(args.sessionId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const files = Array.isArray(args.files) ? args.files.slice(0, 5) : [];
+        const dir = path.join(os.tmpdir(), 'agent-hub-uploads', sessionId || 'session');
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        const out = [];
+        let total = 0;
+        for (const item of files) {
+          const name = String(item?.name || 'attachment').replaceAll('\\', '/').split('/').pop().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 160) || 'attachment';
+          const data = String(item?.data || '');
+          if (!data || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new Error('附件內容無效');
+          const bytes = Buffer.from(data, 'base64');
+          if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error('單一檔案不得超過 10 MB');
+          total += bytes.length;
+          if (total > 20 * 1024 * 1024) throw new Error('附件總大小不得超過 20 MB');
+          const target = path.join(dir, `${crypto.randomBytes(5).toString('hex')}-${name}`);
+          fs.writeFileSync(target, bytes, { mode: 0o600 });
+          out.push({ name, mimeType: String(item?.mimeType || 'application/octet-stream').slice(0, 120), size: bytes.length, path: target, sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
+        }
+        return { files: out };
+      }
       default:
         throw new Error(`未知的操作：${op}`);
     }

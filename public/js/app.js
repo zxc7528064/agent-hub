@@ -736,7 +736,7 @@ function folderMenu(anchor) {
   );
 }
 
-async function startSession({ text, images }) {
+async function startSession({ text, images, files }) {
   const m = homeMachine();
   const a = homeAgent();
   if (!m && !a) return openMachines();
@@ -751,8 +751,8 @@ async function startSession({ text, images }) {
   try {
     const permissionMode = S.home.permission === 'yolo' ? 'bypass' : S.home.permission === 'auto' ? 'auto_edits' : 'ask';
     const body = m
-      ? { machineId: m.id, cwd, prompt: text, images, model, effort, permission: S.home.permission, planMode: S.home.planMode || undefined }
-      : { agentId: a.id, cwd, prompt: text, images, permissionMode };
+      ? { machineId: m.id, cwd, prompt: text, images, files, model, effort, permission: S.home.permission, planMode: S.home.planMode || undefined }
+      : { agentId: a.id, cwd, prompt: text, images, files, permissionMode };
     const s = await post('/sessions', body);
     S.sessions.set(s.id, s);
     resetHomeChoices(); // the next new conversation starts from the defaults again
@@ -1013,13 +1013,13 @@ async function renameSession() {
   if (title?.trim()) sessionCommand('title', title.trim());
 }
 
-async function sendMessage({ text, images, steer }, from) {
+async function sendMessage({ text, images, files, steer }, from) {
   const s = S.cur?.summary;
   if (!s) return;
   // What you send is what you want to see: back to the newest message.
   if (!from) S.cur.transcript.toEnd();
   try {
-    await post(`/sessions/${s.id}/messages`, { text, images, from, steer: Boolean(steer) });
+    await post(`/sessions/${s.id}/messages`, { text, images, files, from, steer: Boolean(steer) });
   } catch (err) {
     if (!from) composer.setText(text);
     fail(err);

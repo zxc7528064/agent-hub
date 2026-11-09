@@ -7,6 +7,7 @@ import { TOOL_DEFS, toolKind, validateInput, executeTool } from './tools.js';
 import { ADAPTERS } from './adapters/index.js';
 import { createWorkspace } from './workspace.js';
 import * as machines from './machines.js';
+import { promptWithUploads } from './uploads.js';
 
 let broadcast = () => {};
 export function setBroadcast(fn) {
@@ -363,7 +364,8 @@ export async function runTurn(session, text, opts = {}) {
   const ac = new AbortController();
   running.set(session.id, { ac });
   const images = (opts.images || []).slice(0, 8);
-  emit(session, { type: 'user', text, images: images.map((i) => `data:${i.mimeType};base64,${i.data}`) });
+  const prompt = promptWithUploads(text, opts.files);
+  emit(session, { type: 'user', text: prompt, images: images.map((i) => `data:${i.mimeType};base64,${i.data}`) });
   if (!session.titled) {
     session.title = text.replace(/\s+/g, ' ').trim().slice(0, 80) || session.title;
     session.titled = true;
@@ -377,7 +379,7 @@ export async function runTurn(session, text, opts = {}) {
   try {
     const availability = adapter.available(agent);
     if (!availability.ok) throw new Error(availability.reason);
-    await adapter.run(ctx, text, { images });
+    await adapter.run(ctx, prompt, { images });
   } catch (err) {
     if (ac.signal.aborted) {
       emit(session, { type: 'info', text: '已中斷' });
@@ -418,7 +420,7 @@ export function startTurn(session, text, opts) {
   if (adapter?.live) {
     const why = adapter.cannotSend?.(session);
     if (why) throw Object.assign(new Error(why), { status: 409 });
-    adapter.send(session, text, opts).catch((err) => {
+    adapter.send(session, promptWithUploads(text, opts?.files), opts).catch((err) => {
       emit(session, { type: 'error', text: err.message });
       setStatus(session, 'idle');
     });

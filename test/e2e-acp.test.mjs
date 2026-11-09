@@ -184,6 +184,26 @@ test('images are forwarded as ACP image blocks', async () => {
   assert.ok(snap.events.some((e) => e.type === 'text' && strip(e.text).includes('收到 1 張圖片與你的訊息')));
 });
 
+test('files are materialized and sent to the agent as readable local paths', async () => {
+  const contents = 'Agent Hub uploaded file contents\n';
+  await api('POST', `/sessions/${sid}/messages`, {
+    text: 'read this attachment',
+    files: [{ name: '../notes.txt', mimeType: 'text/plain', size: Buffer.byteLength(contents), data: Buffer.from(contents).toString('base64') }],
+  });
+  await approveNext(sid, 'approve');
+  await until(() => status(sid, 'idle'), 15000, 'idle');
+
+  const snap = await session(sid);
+  const user = [...snap.events].reverse().find((e) => e.type === 'user');
+  assert.match(user.text, /<attached_files>/);
+  assert.match(user.text, /notes\.txt/);
+  const uploadPath = user.text.match(/:\s+(\/[^\n]+notes\.txt)/)?.[1];
+  assert.ok(uploadPath, 'prompt includes the materialized attachment path');
+  assert.equal(fs.readFileSync(uploadPath, 'utf8'), contents);
+  assert.equal(path.basename(uploadPath).includes('..'), false, 'unsafe path components are removed');
+  fs.rmSync(path.dirname(uploadPath), { recursive: true, force: true });
+});
+
 test('interrupt cancels the running turn', async () => {
   await api('POST', `/sessions/${sid}/messages`, { text: 'slow please' });
   await until(() => status(sid, 'running'), 5000, 'running');

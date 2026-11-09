@@ -1709,6 +1709,28 @@ pre.tail {
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
 }
+.thumb-file {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-content: center;
+  gap: 2px 6px;
+  width: min(220px, 100%);
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--window-raised);
+}
+.thumb-file > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+.thumb-file > small {
+  grid-column: 2;
+  color: var(--ink-secondary);
+}
 .thumb-x {
   position: absolute;
   top: -6px;
