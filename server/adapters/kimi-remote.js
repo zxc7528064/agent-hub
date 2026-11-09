@@ -1297,6 +1297,21 @@ machines.onSessionChange((machineId, entry) => {
   const m = sid && mirrors.get(sid);
   if (!m) return;
   m.meta({ owner: entry.owner || null, controllable: entry.controllable ?? null, guess: Boolean(entry.guess) });
+  // The bridge's session list is authoritative even when a streamed
+  // event.session.work_changed frame was missed. Without this reconciliation
+  // a completed Kimi turn can leave the Hub session permanently "running":
+  // reloading the page only re-reads that stale Hub status, and a live mirror
+  // will not re-attach to repair it.
+  //
+  // Do not let a periodic idle snapshot overwrite a turn the Hub has just
+  // started. Snapshot delivery time is not a reliable freshness signal: a
+  // bridge may send old state with a new timestamp. A terminal journal event
+  // is the durable evidence that makes an idle/error reconciliation safe.
+  const terminal = m.session.events.at(-1)?.type === 'turn_end';
+  if (entry.busy || terminal) {
+    const pending = entry.pending && entry.pending !== 'none';
+    m.ctx.setStatus(entry.busy ? (pending ? 'awaiting_permission' : 'running') : entry.lastTurn === 'failed' ? 'error' : 'idle');
+  }
 });
 
 export function dispose(session) {

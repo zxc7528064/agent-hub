@@ -59,7 +59,9 @@ function fakeMachine(key) {
     send({ t: 'res', id: m.id, ok: true, data: out });
   });
   const frame = (type, payload) => send({ t: 'kimi.event', frame: { type, session_id: KID, payload: { agentId: 'main', ...payload, sessionId: KID } } });
-  return { ws, frame, ready: new Promise((r) => ws.on('open', r)) };
+  const sessions = (patch = {}) =>
+    send({ t: 'kimi.sessions', items: [{ ...info, updated_at: new Date().toISOString(), ...patch }] });
+  return { ws, frame, sessions, ready: new Promise((r) => ws.on('open', r)) };
 }
 
 // A browser page, reduced to what it keeps: the conversation it watches.
@@ -160,6 +162,54 @@ test('a watching page gets a snapshot and every change after it, also across new
   for (let i = 1; i < seqs.length; i++) assert.equal(seqs[i], seqs[i - 1] + 1);
 
   for (const p of [watcher, home, legacy]) p.ws.close();
+});
+
+test('a machine session snapshot repairs a stale running status when the final work event was missed', async () => {
+  machine.frame('turn.started', { turnId: 't_stale', promptId: 'p_stale', origin: { kind: 'user' }, prompt: '會完成的工作' });
+  machine.frame('event.session.work_changed', { busy: true, pending_interaction: 'none' });
+  await until(async () => (await api('GET', `/sessions/${sid}`)).status === 'running', 5000, 'turn running');
+
+  // Reproduce the production failure: the turn-end journal entry arrives,
+  // but event.session.work_changed(busy=false) does not.
+  machine.frame('turn.ended', { turnId: 't_stale', reason: 'completed' });
+  const stale = await until(async () => {
+    const s = await api('GET', `/sessions/${sid}`);
+    return s.status === 'running' && s.events.at(-1)?.type === 'turn_end' && s;
+  }, 5000, 'stale running status');
+  assert.equal(stale.status, 'running');
+
+  // A bridge refresh/list update is authoritative and must heal the Hub
+  // summary without requiring an interrupt or server restart.
+  machine.sessions({ busy: false, pending_interaction: 'none', last_turn_reason: 'completed' });
+  const healed = await until(async () => {
+    const s = await api('GET', `/sessions/${sid}`);
+    return s.status === 'idle' && s;
+  }, 5000, 'status reconciliation');
+  assert.equal(healed.events.at(-1).type, 'turn_end');
+});
+
+test('an idle machine snapshot cannot overwrite a turn the Hub just started', async () => {
+  machine.frame('turn.started', { turnId: 't_new', promptId: 'p_new', origin: { kind: 'user' }, prompt: '新的工作' });
+  machine.frame('event.session.work_changed', { busy: true, pending_interaction: 'none' });
+  await until(async () => {
+    const s = await api('GET', `/sessions/${sid}`);
+    return s.status === 'running' && s;
+  }, 5000, 'new turn running');
+
+  machine.sessions({
+    busy: false,
+    pending_interaction: 'none',
+    last_turn_reason: 'completed',
+    // Even a newly delivered snapshot may contain state captured before the
+    // turn started, so its timestamp must not make it authoritative.
+    updated_at: new Date(Date.now() + 1000).toISOString(),
+  });
+  await sleep(100);
+  assert.equal((await api('GET', `/sessions/${sid}`)).status, 'running');
+
+  machine.frame('turn.ended', { turnId: 't_new', reason: 'completed' });
+  machine.frame('event.session.work_changed', { busy: false, pending_interaction: 'none', last_turn_reason: 'completed' });
+  await until(async () => (await api('GET', `/sessions/${sid}`)).status === 'idle', 5000, 'new turn over');
 });
 
 test('watching a conversation that does not exist says so; switching to another stops the first one', async () => {
